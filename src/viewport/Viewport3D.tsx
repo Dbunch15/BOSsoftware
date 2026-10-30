@@ -343,8 +343,8 @@ function CameraRig({ center, radius }: { center: THREE.Vector3; radius: number }
     // Distance that fits a sphere of `radius` in both the vertical and horizontal field of view.
     const vfov = ((camera as THREE.PerspectiveCamera).fov * Math.PI) / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect);
-    const dist = (radius / Math.sin(Math.min(vfov, hfov) / 2)) * 0.92;
-    const dir = camPreset.preset === 'top' ? new THREE.Vector3(0, 1, 0.001) : new THREE.Vector3(0.42, 0.4, 0.9);
+    const dist = (radius / Math.sin(Math.min(vfov, hfov) / 2)) * 0.74;
+    const dir = camPreset.preset === 'top' ? new THREE.Vector3(0, 1, 0.001) : new THREE.Vector3(0.42, 0.34, 0.9);
     camera.position.copy(c).addScaledVector(dir.normalize(), dist);
     controls.target.set(c.x, -0.5, c.z);
     controls.update();
