@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
  * full render quality. Clipped page screenshots are used because element screenshots wait for a
  * layout-stability check that a slow software-GL frame loop rarely satisfies.
  */
-for (const id of ['lagoon', 'kidney-spa']) {
+for (const id of ['lagoon', 'kidney-spa', 'long-beach-grotto']) {
   test(`screenshots: ${id}`, async ({ page }) => {
     test.setTimeout(900_000);
     await page.setViewportSize({ width: 1280, height: 800 });

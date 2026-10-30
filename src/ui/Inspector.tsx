@@ -1,13 +1,17 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { ZONE_LABEL } from '../editor/zoneFactory';
 import type { Zone } from '../model/schema';
 import { FINISHES, finishById } from '../specs/finishes';
 import { updateDoc, useDoc } from '../state/docStore';
 import { renameProject, useProjects } from '../state/projects';
-import { isSculptTool, useUi } from '../state/uiStore';
+import { type RockPreset, isSculptTool, useUi } from '../state/uiStore';
 import { formatLength } from '../units/format';
-import { Field, LengthInput, Slider, TextInput } from './controls';
+import { Field, LengthInput, Segmented, Slider, TextInput } from './controls';
+import { ROCK_TYPES, type Rockwork } from '../model/schema';
+import { ROCK_COLORS, ROCK_LABELS } from '../rockwork/colors';
 import { WarningsPanel } from './WarningsPanel';
+import { PhotoImportDialog } from './PhotoImportDialog';
+import { downloadFinishPhoto, removeFinishPhoto, useFinishLibrary } from '../materials/finishLibrary';
 
 export function Inspector() {
   return (
@@ -43,8 +47,29 @@ function ToolPanel() {
   const tool = useUi((s) => s.tool);
   const brush = useUi((s) => s.brush);
   const setBrush = useUi((s) => s.setBrush);
+  const rockPreset = useUi((s) => s.rockPreset);
   const doc = useDoc();
   const units = doc.units;
+  if (tool === 'rock') {
+    return (
+      <Section title="Rockwork">
+        <Segmented<RockPreset>
+          label="Rockwork preset"
+          value={rockPreset}
+          onChange={(v) => useUi.getState().set({ rockPreset: v })}
+          options={[
+            { value: 'wall', label: 'Rock wall', testId: 'preset-wall' },
+            { value: 'waterfall', label: 'Waterfall', testId: 'preset-waterfall' },
+            { value: 'grotto', label: 'Grotto', testId: 'preset-grotto' },
+          ]}
+        />
+        <p className="tiny" style={{ marginTop: 8 }}>
+          Click points along the line of the rockwork — usually just outside the waterline so the face meets the pool. Double-click or press
+          Enter to finish, Backspace removes the last point.
+        </p>
+      </Section>
+    );
+  }
   if (!isSculptTool(tool)) return null;
   const cells = Object.keys(doc.sculpt.cells).length;
   return (
@@ -117,6 +142,11 @@ function SelectionPanel() {
     const z = doc.zones.find((q) => q.id === selection.id);
     if (!z) return null;
     return <ZoneEditor zone={z} />;
+  }
+
+  if (selection.kind === 'rockwork') {
+    const rw = doc.rockwork.find((r) => r.id === selection.id);
+    return rw ? <RockworkEditor rw={rw} /> : null;
   }
 
   if (selection.kind === 'spa' && doc.spa) {
@@ -240,6 +270,100 @@ function ZoneEditor({ zone }: { zone: Zone }) {
   );
 }
 
+function RockworkEditor({ rw }: { rw: Rockwork }) {
+  const units = useDoc().units;
+  const edit = (fn: (r: Rockwork) => void) =>
+    updateDoc((d) => {
+      const r = d.rockwork.find((q) => q.id === rw.id);
+      if (r) fn(r as Rockwork);
+    });
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  return (
+    <Section title="Rockwork">
+      <Field label="Name">
+        <TextInput value={rw.name} onChange={(v) => edit((r) => void (r.name = v))} />
+      </Field>
+      <Field label="Height above deck">
+        <LengthInput testId="rock-height" units={units} value={rw.height} min={0.3} max={5} onChange={(v) => edit((r) => void (r.height = v))} />
+      </Field>
+      <Field label="Depth (front to back)">
+        <LengthInput units={units} value={rw.thickness} min={0.4} max={5} onChange={(v) => edit((r) => void (r.thickness = v))} />
+      </Field>
+      <Field label="Boulder size">
+        <LengthInput units={units} value={rw.boulderSize} min={0.25} max={2} onChange={(v) => edit((r) => void (r.boulderSize = v))} />
+      </Field>
+      <Field label="Character" full>
+        <Slider label="Jaggedness" min={0} max={1} step={0.05} value={rw.jaggedness} onChange={(v) => edit((r) => void (r.jaggedness = v))} format={(v) => (v < 0.34 ? 'River rock' : v < 0.67 ? 'Natural' : 'Quarried')} />
+      </Field>
+      <div className="rock-types" role="radiogroup" aria-label="Rock type">
+        {ROCK_TYPES.map((t) => (
+          <button key={t} role="radio" aria-checked={rw.rockType === t} aria-pressed={rw.rockType === t} className="rock-type" onClick={() => edit((r) => void (r.rockType = t))}>
+            <i style={{ background: ROCK_COLORS[t] }} />
+            {ROCK_LABELS[t]}
+          </button>
+        ))}
+      </div>
+      <button className="btn sm" style={{ margin: '8px 0 4px' }} onClick={() => edit((r) => void (r.seed = Math.floor(Math.random() * 1e6)))} data-testid="rock-reshuffle">
+        Reshuffle boulders
+      </button>
+
+      <h4 className="section-title" style={{ marginTop: 14 }}>
+        Waterfall
+        <input type="checkbox" aria-label="Waterfall" checked={rw.waterfall.enabled} onChange={(e) => edit((r) => void (r.waterfall.enabled = e.target.checked))} data-testid="rock-waterfall" />
+      </h4>
+      {rw.waterfall.enabled && (
+        <>
+          <Segmented
+            label="Waterfall type"
+            value={rw.waterfall.type}
+            onChange={(v) => edit((r) => void (r.waterfall.type = v))}
+            options={[
+              { value: 'sheet', label: 'Sheet spill' },
+              { value: 'cascade', label: 'Cascade' },
+            ]}
+          />
+          <Field label="Starts at" full>
+            <Slider label="Waterfall start" min={0} max={1} step={0.01} value={rw.waterfall.span.t0} onChange={(v) => edit((r) => void (r.waterfall.span.t0 = Math.min(v, r.waterfall.span.t1 - 0.05)))} format={pct} />
+          </Field>
+          <Field label="Ends at" full>
+            <Slider label="Waterfall end" min={0} max={1} step={0.01} value={rw.waterfall.span.t1} onChange={(v) => edit((r) => void (r.waterfall.span.t1 = Math.max(v, r.waterfall.span.t0 + 0.05)))} format={pct} />
+          </Field>
+        </>
+      )}
+
+      <h4 className="section-title" style={{ marginTop: 14 }}>
+        Grotto
+        <input type="checkbox" aria-label="Grotto" checked={rw.grotto.enabled} onChange={(e) => edit((r) => void (r.grotto.enabled = e.target.checked))} data-testid="rock-grotto" />
+      </h4>
+      {rw.grotto.enabled && (
+        <>
+          <Field label="Opening height">
+            <LengthInput units={units} value={rw.grotto.openingHeight} min={0.5} max={3} onChange={(v) => edit((r) => void (r.grotto.openingHeight = v))} />
+          </Field>
+          <Field label="Opening from" full>
+            <Slider label="Grotto start" min={0} max={1} step={0.01} value={rw.grotto.span.t0} onChange={(v) => edit((r) => void (r.grotto.span.t0 = Math.min(v, r.grotto.span.t1 - 0.05)))} format={pct} />
+          </Field>
+          <Field label="Opening to" full>
+            <Slider label="Grotto end" min={0} max={1} step={0.01} value={rw.grotto.span.t1} onChange={(v) => edit((r) => void (r.grotto.span.t1 = Math.max(v, r.grotto.span.t0 + 0.05)))} format={pct} />
+          </Field>
+          {rw.height < rw.grotto.openingHeight + rw.boulderSize * 0.7 && <p className="tiny">The roof rises above the wall height to clear the opening.</p>}
+        </>
+      )}
+      <p className="tiny">Drag the rocks to move the whole feature; drag the round handles to reshape its line. Remove-point (X) deletes a handle.</p>
+      <button
+        className="btn sm danger"
+        style={{ marginTop: 6 }}
+        onClick={() => {
+          updateDoc((d) => void (d.rockwork = d.rockwork.filter((q) => q.id !== rw.id)));
+          useUi.getState().select(null);
+        }}
+      >
+        Delete rockwork
+      </button>
+    </Section>
+  );
+}
+
 function PoolPanel() {
   const doc = useDoc();
   const units = doc.units;
@@ -279,6 +403,12 @@ function ZonesPanel() {
           <span className="meta">{ZONE_LABEL[z.kind]}</span>
         </button>
       ))}
+      {doc.rockwork.map((rw) => (
+        <button key={rw.id} className="menu-item" aria-current={selection?.kind === 'rockwork' && selection.id === rw.id} onClick={() => useUi.getState().select({ kind: 'rockwork', id: rw.id })}>
+          {rw.name}
+          <span className="meta">rockwork</span>
+        </button>
+      ))}
       {doc.spa && (
         <button className="menu-item" aria-current={selection?.kind === 'spa'} onClick={() => useUi.getState().select({ kind: 'spa' })}>
           Spa<span className="meta">placeholder</span>
@@ -297,31 +427,66 @@ function ZonesPanel() {
 function FinishPanel() {
   const doc = useDoc();
   const current = finishById(doc.finish.id);
+  const maps = useFinishLibrary((s) => s.maps);
+  const [importing, setImporting] = useState(false);
+  const photo = maps[current.id];
   return (
     <Section title="Finish">
       <div className="finish-grid" role="radiogroup" aria-label="Naturi finish">
-        {FINISHES.map((f) => (
-          <button
-            key={f.id}
-            role="radio"
-            aria-checked={f.id === current.id}
-            aria-pressed={f.id === current.id}
-            aria-label={f.name}
-            title={`${f.name}${f.confirmed ? '' : ' — unconfirmed'}`}
-            className={`swatch${f.confirmed ? '' : ' tbc'}`}
-            data-testid={`finish-${f.id}`}
-            style={{
-              background: `radial-gradient(circle at 30% 30%, ${f.grains[0].color} 0 18%, transparent 19%), radial-gradient(circle at 70% 60%, ${f.grains[1]?.color ?? f.base} 0 14%, transparent 15%), ${f.base}`,
-            }}
-            onClick={() => updateDoc((d) => void (d.finish.id = f.id))}
-          />
-        ))}
+        {FINISHES.map((f) => {
+          const m = maps[f.id];
+          return (
+            <button
+              key={f.id}
+              role="radio"
+              aria-checked={f.id === current.id}
+              aria-pressed={f.id === current.id}
+              aria-label={f.name}
+              title={`${f.name}${f.confirmed ? '' : ' — unconfirmed'}${m ? ' · photo' : ''}`}
+              className={`swatch${f.confirmed ? '' : ' tbc'}${m ? ' photo' : ''}`}
+              data-testid={`finish-${f.id}`}
+              style={{
+                background: m
+                  ? `url(${m.albedo}) center / 300% repeat`
+                  : `radial-gradient(circle at 30% 30%, ${f.grains[0].color} 0 18%, transparent 19%), radial-gradient(circle at 70% 60%, ${f.grains[1]?.color ?? f.base} 0 14%, transparent 15%), ${f.base}`,
+              }}
+              onClick={() => updateDoc((d) => void (d.finish.id = f.id))}
+            />
+          );
+        })}
       </div>
       <div className="finish-name">{current.name}</div>
       <div className="tiny">{current.description}</div>
-      <div className="tiny" style={{ marginTop: 4 }}>
-        Render color is approximate — confirm against a physical Naturi sample.
+      <div className="photo-status" data-testid="finish-source">
+        {photo ? (
+          <>
+            <b>{photo.origin === 'device' ? 'Your sample photo' : 'Bundled photo'}</b> · {photo.size ? `${photo.size} px · ` : ''}
+            {formatLength(photo.tileSize, doc.units)} tile
+            <div className="tiny">{photo.source}</div>
+          </>
+        ) : (
+          <>
+            <b>Procedural preview</b>
+            <div className="tiny">Approximate color — import a photo of a physical sample for a true match.</div>
+          </>
+        )}
       </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <button className="btn sm" onClick={() => setImporting(true)} data-testid="import-photo">
+          Import sample photo…
+        </button>
+        {photo?.origin === 'device' && (
+          <>
+            <button className="btn sm" onClick={() => downloadFinishPhoto(current.id)}>
+              Download maps
+            </button>
+            <button className="btn sm danger" onClick={() => removeFinishPhoto(current.id)}>
+              Remove photo
+            </button>
+          </>
+        )}
+      </div>
+      {importing && <PhotoImportDialog finish={current} onClose={() => setImporting(false)} />}
     </Section>
   );
 }

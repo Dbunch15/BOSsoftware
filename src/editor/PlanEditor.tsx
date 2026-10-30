@@ -14,7 +14,8 @@ import { useElementSize, useSpaceHeld } from '../ui/hooks';
 import { OUTLINE_FIT, ZONE_FIT, fitClosedStroke } from './fitStroke';
 import { depthColor, heatmapDataUrl } from './heatmap';
 import { applyDab } from './sculpt';
-import { newBeach, newBench, newDeep, newShelf } from './zoneFactory';
+import { newBeach, newBench, newDeep, newRockwork, newShelf } from './zoneFactory';
+import { RockworkPlan } from './RockworkPlan';
 
 interface View {
   scale: number; // px per meter
@@ -30,7 +31,9 @@ type Drag =
   | { kind: 'stroke'; purpose: 'outline' | 'sunShelf' | 'deepZone'; pts: Vec2[] }
   | { kind: 'span'; zoneKind: 'beachEntry' | 'bench'; start: number; last: number; acc: number }
   | { kind: 'sculpt'; last: Vec2 }
-  | { kind: 'move'; target: { feature: string } | 'spa'; offset: Vec2 };
+  | { kind: 'move'; target: { feature: string } | 'spa'; offset: Vec2 }
+  | { kind: 'rockPt'; id: string; index: number }
+  | { kind: 'rockMove'; id: string; last: Vec2 };
 
 type Preview = { kind: 'stroke'; pts: Vec2[] } | { kind: 'span'; pts: Vec2[] };
 
@@ -50,6 +53,7 @@ const CURSOR: Partial<Record<Tool, string>> = {
   insert: 'copy',
   remove: 'not-allowed',
   pan: 'grab',
+  rock: 'crosshair',
   deepen: 'none',
   raise: 'none',
   smooth: 'none',
@@ -78,13 +82,48 @@ export function PlanEditor() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [brushAt, setBrushAt] = useState<Vec2 | null>(null);
   const space = useSpaceHeld();
+  const rockPreset = useUi((s) => s.rockPreset);
+  const [rockDraft, setRockDraft] = useState<Vec2[] | null>(null);
+  const [rockHover, setRockHover] = useState<Vec2 | null>(null);
+  useEffect(() => {
+    if (tool !== 'rock') setRockDraft(null);
+  }, [tool]);
+  const finishRock = useCallback(() => {
+    setRockDraft((draft) => {
+      if (!draft) return null;
+      const pts = draft.filter((p, i) => i === 0 || dist(p, draft[i - 1]) > 0.15);
+      if (pts.length >= 2) {
+        const rw = newRockwork(pts, useUi.getState().rockPreset);
+        updateDoc((d) => {
+          d.rockwork.push(rw);
+        });
+        useUi.getState().select({ kind: 'rockwork', id: rw.id });
+      }
+      return null;
+    });
+  }, []);
+  useEffect(() => {
+    if (!rockDraft) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        finishRock();
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setRockDraft((d) => (d && d.length > 1 ? d.slice(0, -1) : null));
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [rockDraft, finishRock]);
   const [panning, setPanning] = useState(false);
 
   // ---- view fitting -------------------------------------------------------------------
   const fit = useCallback(() => {
     if (!size.w || !size.h) return;
     const m = modelRef.current;
-    const pts = [...m.outline.pts];
+    const pts = [...m.outline.pts, ...Object.values(m.rockwork).flatMap((l) => l.rocks.flatMap((r) => r.plan))];
     for (const f of m.doc.features) pts.push({ x: f.position.x - f.size.x / 2, y: f.position.y - f.size.y / 2 }, { x: f.position.x + f.size.x / 2, y: f.position.y + f.size.y / 2 });
     if (m.doc.spa) {
       const { position: c, diameter: d } = m.doc.spa;
@@ -224,6 +263,9 @@ export function PlanEditor() {
         sculptDab(p, pressureOf(e));
         drag.current = { kind: 'sculpt', last: p };
         return;
+      case 'rock':
+        setRockDraft((d) => [...(d ?? []), round(p)]);
+        return;
       case 'select':
       case 'remove':
       default:
@@ -242,6 +284,7 @@ export function PlanEditor() {
       });
     }
     if (isSculptTool(tool)) setBrushAt(p);
+    if (rockDraft) setRockHover(p);
     const d = drag.current;
     if (!d) return;
     switch (d.kind) {
@@ -297,6 +340,22 @@ export function PlanEditor() {
         d.last = u;
         const [u0, u1] = d.acc >= 0 ? [d.start, u] : [u, d.start];
         setPreview({ kind: 'span', pts: Math.abs(d.acc) > 0.002 ? extractSpan(outline, u0, u1) : [] });
+        return;
+      }
+      case 'rockPt':
+        updateDoc((doc) => {
+          const rw = doc.rockwork.find((r) => r.id === d.id);
+          if (rw) rw.path[d.index] = round(p);
+        });
+        return;
+      case 'rockMove': {
+        const dx = p.x - d.last.x;
+        const dy = p.y - d.last.y;
+        d.last = p;
+        updateDoc((doc) => {
+          const rw = doc.rockwork.find((r) => r.id === d.id);
+          if (rw) rw.path = rw.path.map((q) => round({ x: q.x + dx, y: q.y + dy }));
+        });
         return;
       }
       case 'sculpt': {
@@ -459,6 +518,7 @@ export function PlanEditor() {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onPointerLeave={() => setBrushAt(null)}
+        onDoubleClick={() => tool === 'rock' && finishRock()}
         onContextMenu={(e) => e.preventDefault()}
       >
         <Grid view={view} w={size.w} h={size.h} units={units} />
@@ -518,6 +578,34 @@ export function PlanEditor() {
           ))}
           <Dimensions model={model} scale={s} units={units} />
 
+          <RockworkPlan
+            model={model}
+            scale={s}
+            units={units}
+            selectedId={selection?.kind === 'rockwork' ? selection.id : null}
+            onRockDown={(e, id) => {
+              if (tool !== 'select' || e.button !== 0 || space) return;
+              e.stopPropagation();
+              capture(e);
+              useUi.getState().select({ kind: 'rockwork', id });
+              beginGesture();
+              drag.current = { kind: 'rockMove', id, last: toWorld(e.clientX, e.clientY) };
+            }}
+            onPointDown={(e, id, index) => {
+              if (e.button !== 0 || space) return;
+              e.stopPropagation();
+              if (tool === 'remove') {
+                updateDoc((d) => {
+                  const rw = d.rockwork.find((r) => r.id === id);
+                  if (rw && rw.path.length > 2) rw.path.splice(index, 1);
+                });
+                return;
+              }
+              capture(e);
+              beginGesture();
+              drag.current = { kind: 'rockPt', id, index };
+            }}
+          />
           {/* selected zone handles */}
           {selZone && 'polygon' in selZone &&
             selZone.polygon.map((p, i) => (
@@ -578,6 +666,24 @@ export function PlanEditor() {
               );
             })}
 
+          {rockDraft && (
+            <g pointerEvents="none" data-testid="rock-draft">
+              <path
+                d={pathOf(rockHover ? [...rockDraft, rockHover] : rockDraft, false)}
+                fill="none"
+                stroke="var(--accent)"
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                vectorEffect="non-scaling-stroke"
+              />
+              {rockDraft.map((p, i) => (
+                <circle key={i} cx={p.x} cy={p.y} r={px(4)} fill="var(--accent)" />
+              ))}
+              <text x={(rockHover ?? rockDraft[rockDraft.length - 1]).x} y={(rockHover ?? rockDraft[rockDraft.length - 1]).y - px(12)} fontSize={px(11)} fill="var(--accent)" strokeWidth={px(3)} textAnchor="middle">
+                {rockPreset === 'wall' ? 'Rock wall' : rockPreset === 'waterfall' ? 'Waterfall' : 'Grotto'} · double-click or Enter to finish
+              </text>
+            </g>
+          )}
           <ViolationMarkers model={model} scale={s} />
 
           {preview?.kind === 'stroke' && (

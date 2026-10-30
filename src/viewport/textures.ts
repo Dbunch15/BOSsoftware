@@ -178,3 +178,44 @@ export function waterNormalTexture(): THREE.CanvasTexture {
   waterNormal.colorSpace = THREE.NoColorSpace;
   return waterNormal;
 }
+
+let rockTex: THREE.CanvasTexture | null = null;
+/** Neutral weathered-stone detail (grain, pits, faint strata); rock color comes from instances. */
+export function rockTexture(): THREE.CanvasTexture {
+  if (rockTex) return rockTex;
+  const size = 512;
+  const [c, ctx] = canvas(size);
+  ctx.fillStyle = '#c8c8c8';
+  ctx.fillRect(0, 0, size, size);
+  const rand = rng(1234);
+  for (let n = 0; n < 2600; n++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const r = 2 + rand() * rand() * 26;
+    const v = rand() < 0.5 ? 0 : 255;
+    ctx.fillStyle = `rgba(${v},${v},${v},${0.03 + rand() * 0.05})`;
+    tileable(ctx, size, (px, py) => {
+      ctx.beginPath();
+      ctx.arc(px, py, r, 0, Math.PI * 2);
+      ctx.fill();
+    }, x, y);
+  }
+  for (let n = 0; n < 30000; n++) {
+    const v = Math.round(rand() * 255);
+    ctx.fillStyle = `rgba(${v},${v},${v},0.18)`;
+    ctx.fillRect(rand() * size, rand() * size, 1 + rand() * 1.5, 1 + rand() * 1.5);
+  }
+  for (let k = 0; k < 9; k++) {
+    const y = rand() * size;
+    ctx.strokeStyle = `rgba(80,70,60,${0.04 + rand() * 0.05})`;
+    ctx.lineWidth = 1 + rand() * 3;
+    ctx.beginPath();
+    for (let x = 0; x <= size; x += 16) ctx.lineTo(x, y + Math.sin((x / size) * Math.PI * 2 * (1 + k % 3)) * 6);
+    ctx.stroke();
+  }
+  rockTex = new THREE.CanvasTexture(c);
+  rockTex.wrapS = rockTex.wrapT = THREE.RepeatWrapping;
+  rockTex.colorSpace = THREE.SRGBColorSpace;
+  rockTex.anisotropy = 8;
+  return rockTex;
+}

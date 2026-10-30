@@ -27,6 +27,10 @@ export const TOOL_GROUPS: Array<{ label: string; tools: ToolInfo[] }> = [
     ],
   },
   {
+    label: 'Features',
+    tools: [{ id: 'rock', label: 'Rockwork', key: 'K', hint: 'Click points along a rock wall, waterfall or grotto; double-click or Enter to finish.' }],
+  },
+  {
     label: 'Sculpt',
     tools: [
       { id: 'deepen', label: 'Deepen', key: 'E', hint: 'Paint to dig the floor deeper. Works in plan and 3D.' },
