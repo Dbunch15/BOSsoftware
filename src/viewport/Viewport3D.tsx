@@ -279,15 +279,23 @@ function KoiPond({ polygon, origin, material }: { polygon: Array<{ x: number; y:
 
 function Markers({ model }: { model: Model }) {
   const units = model.doc.units;
+  // Only the first of several nearby badges carries a text label; the rest collapse to a dot.
+  const labelled: Array<{ x: number; y: number }> = [];
   return (
     <group>
       {model.violations.map((v) => {
         const d = sampleDepth(model.field, v.at);
+        const crowded = labelled.some((p) => Math.hypot(p.x - v.at.x, p.y - v.at.y) < 3);
+        if (!crowded) labelled.push(v.at);
         return (
           <Html key={v.id} position={[v.at.x, Math.max(-d, 0) + 0.35, v.at.y]} zIndexRange={[30, 10]}>
-            <div className={`badge3d ${v.severity}`} data-testid="3d-warning" data-rule={v.ruleId} data-severity={v.severity}>
+            <div className={`badge3d ${v.severity}`} data-testid="3d-warning" data-rule={v.ruleId} data-severity={v.severity} title={v.title}>
               <span className="dot">!</span>
-              {RULE_LABELS[v.ruleId].replace('Max ', '').replace('Min ', '')} · {formatQuantity(v.quantity, v.measured, units).split(' (')[0]}
+              {!crowded && (
+                <>
+                  {RULE_LABELS[v.ruleId].replace('Max ', '').replace('Min ', '')} · {formatQuantity(v.quantity, v.measured, units).split(' (')[0]}
+                </>
+              )}
             </div>
           </Html>
         );

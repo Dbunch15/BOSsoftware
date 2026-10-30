@@ -42,3 +42,34 @@ export function argMax(cells: Int32Array, score: (k: number) => number): number 
   }
   return best;
 }
+
+/**
+ * Merge clusters whose worst cells lie within `radius` meters of each other, so one sculpted
+ * pit or one steep transition reads as one warning rather than several fragments.
+ */
+export function mergeNearby(g: GridSpec, clusters: Int32Array[], score: (k: number) => number, radius: number): Int32Array[] {
+  const groups: Array<{ worst: number; parts: Int32Array[] }> = [];
+  const pos = (k: number) => ({ x: (k % g.nx) * g.cell, y: Math.floor(k / g.nx) * g.cell });
+  for (const c of clusters) {
+    const w = argMax(c, score);
+    const p = pos(w);
+    const hit = groups.find((gr) => {
+      const q = pos(gr.worst);
+      return Math.hypot(p.x - q.x, p.y - q.y) <= radius;
+    });
+    if (hit) {
+      hit.parts.push(c);
+      if (score(w) > score(hit.worst)) hit.worst = w;
+    } else groups.push({ worst: w, parts: [c] });
+  }
+  return groups.map((gr) => {
+    const total = gr.parts.reduce((n, p) => n + p.length, 0);
+    const out = new Int32Array(total);
+    let o = 0;
+    for (const p of gr.parts) {
+      out.set(p, o);
+      o += p.length;
+    }
+    return out;
+  });
+}

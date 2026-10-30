@@ -806,6 +806,9 @@ input[type='range'] {
   white-space: nowrap;
   box-shadow: 0 4px 14px rgb(0 0 0 / 0.4);
 }
+.badge3d:has(.dot:only-child) {
+  padding: 3px;
+}
 .badge3d .dot {
   width: 16px;
   height: 16px;

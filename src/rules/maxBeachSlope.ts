@@ -1,5 +1,5 @@
 import { Region, cellCenter } from '../model/floorField';
-import { argMax, clusterCells } from './cluster';
+import { argMax, clusterCells, mergeNearby } from './cluster';
 import { type Rule, type Violation, severityFor } from './types';
 
 /** Walkable beach ramp must not exceed the max beach slope. */
@@ -20,7 +20,7 @@ export const maxBeachSlope: Rule = ({ doc, field, specs }) => {
     if (field.slope[k] > limit * 1.0001) mask[k] = 1;
   }
   const out: Violation[] = [];
-  clusterCells(field, mask).forEach((cells, n) => {
+  mergeNearby(field, clusterCells(field, mask, 6), (k) => field.slope[k], 2.5).forEach((cells, n) => {
     const worst = argMax(cells, (k) => field.slope[k]);
     const measured = field.slope[worst];
     const zone = beaches[field.beachZone[worst]];

@@ -1,5 +1,5 @@
 import { Region, cellCenter } from '../model/floorField';
-import { argMax, clusterCells } from './cluster';
+import { argMax, clusterCells, mergeNearby } from './cluster';
 import { type Rule, type Violation, severityFor } from './types';
 
 /** General floor (excluding walls, beach ramps, benches and shelf steps) must not exceed the max floor slope. */
@@ -14,7 +14,7 @@ export const maxFloorSlope: Rule = ({ doc, field, specs }) => {
     if (field.slope[k] > limit * 1.0001) mask[k] = 1;
   }
   const out: Violation[] = [];
-  clusterCells(field, mask).forEach((cells, n) => {
+  mergeNearby(field, clusterCells(field, mask, 6), (k) => field.slope[k], 2.5).forEach((cells, n) => {
     const worst = argMax(cells, (k) => field.slope[k]);
     const measured = field.slope[worst];
     out.push({
