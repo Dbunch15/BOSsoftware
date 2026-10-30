@@ -21,6 +21,23 @@ npm run e2e          # Playwright smoke test (needs `npm run build` first)
 npm run screenshots  # regenerate docs/screenshots (slow on software WebGL)
 ```
 
+### Finish photos
+
+Each Naturi finish can use a photo of a physical sample instead of the procedural preview:
+**Finish → Import sample photo**. The center square of the photo is turned into a seamless
+2K or 4K tile, the lighting is evened out, and relief and roughness maps are derived from it.
+Imported photos are stored per device. To ship a set to every designer and client, use
+**Download maps** and add the files under [`public/materials/`](public/materials/README.md).
+Only use photos you own or have permission to use.
+
+### Rockwork
+
+The **Rockwork** tool (`K`) builds natural boulder rockwork along a line you click. There are
+three presets: rock wall, waterfall (sheet spill or cascade) and grotto (an opening under slab
+roof stones). Height, depth, boulder size, character, rock type and the waterfall and grotto
+spans are all editable, and **Reshuffle** re-stacks the boulders. Rocks sit on the modelled
+floor and deck, and the same layout drives the plan and 3D views.
+
 Add `?quality=low` to the URL for a cheaper render path on weak GPUs. It skips the transmission
 pass, shadows and ambient occlusion.
 
@@ -71,12 +88,14 @@ All values are stored in meters and formatted only for display.
 | `src/persistence/` | `ProjectRepository` interface, IndexedDB + memory implementations, JSON I/O |
 | `src/state/` | doc store (undoable), UI store, project lifecycle + autosave |
 | `src/editor/` | plan editor, stroke fitting, sculpt brushes, shortcuts |
-| `src/viewport/` | 3D scene, shell mesh, water, procedural textures |
+| `src/viewport/` | 3D scene, shell mesh, water, rockwork, procedural textures |
+| `src/rockwork/` | seeded boulder layout for walls, waterfalls and grottos |
+| `src/materials/` | sample-photo pipeline (seamless tile, normal/roughness), finish photo library |
 
 ## Keyboard
 
 `V` select · `P` freehand outline · `I` add point · `X` remove point · `B` beach · `N` bench ·
-`S` sun shelf · `D` deep zone · `E` deepen · `R` raise · `M` smooth · `F` flatten (Alt-click
+`S` sun shelf · `D` deep zone · `K` rockwork · `E` deepen · `R` raise · `M` smooth · `F` flatten (Alt-click
 samples a depth) · `H` pan · `[` `]` brush size · `Shift+[` `]` strength · `Ctrl+Z` /
 `Ctrl+Shift+Z` undo/redo · `1` `2` `3` layouts · `.` frame · `T` 3D top view · `W` water ·
 `U` units · `?` help.

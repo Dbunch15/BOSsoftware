@@ -15,6 +15,7 @@ const ICON: Record<string, string> = {
   raise: 'raise',
   smooth: 'smooth',
   flatten: 'flatten',
+  rock: 'rock',
   pan: 'pan',
 };
 

@@ -25,7 +25,7 @@ export default defineConfig({
     timeout: 60_000,
   },
   projects: [
-    { name: 'smoke', testMatch: /smoke\.spec\.ts/ },
+    { name: 'smoke', testMatch: /(smoke|features)\.spec\.ts/ },
     { name: 'screenshots', testMatch: /screenshots\.spec\.ts/ },
   ],
 });

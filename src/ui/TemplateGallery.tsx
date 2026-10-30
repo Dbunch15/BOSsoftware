@@ -14,13 +14,18 @@ function Thumb({ id }: { id: string }) {
       const { position: p, diameter: d } = m.doc.spa;
       pts.push({ x: p.x - d / 2, y: p.y - d / 2 }, { x: p.x + d / 2, y: p.y + d / 2 });
     }
+    for (const lay of Object.values(m.rockwork)) for (const r of lay.rocks) pts.push(...r.plan);
     for (const f of m.doc.features) pts.push({ x: f.position.x - f.size.x / 2, y: f.position.y - f.size.y / 2 }, { x: f.position.x + f.size.x / 2, y: f.position.y + f.size.y / 2 });
     const b = bounds(pts);
     const pad = 1;
     const vb = `${b.minX - pad} ${b.minY - pad} ${b.maxX - b.minX + 2 * pad} ${b.maxY - b.minY + 2 * pad}`;
     const path = (ps: Array<{ x: number; y: number }>) => `M${ps.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join('L')}Z`;
     const deep = m.contours.slice().sort((a, b2) => a.level - b2.level);
-    return { vb, outline: path(m.outline.pts), contours: deep.map((c) => ({ d: path(c.points), fill: depthColor(c.level) })), spa: m.doc.spa, features: m.doc.features };
+    const rocks = Object.values(m.rockwork)
+      .flatMap((lay) => lay.rocks)
+      .sort((a, b) => a.y + a.sy - (b.y + b.sy))
+      .map((r) => path(r.plan));
+    return { vb, outline: path(m.outline.pts), contours: deep.map((c) => ({ d: path(c.points), fill: depthColor(c.level) })), spa: m.doc.spa, features: m.doc.features, rocks };
   }, [id]);
   const rgb = (c: number[]) => `rgb(${c.map(Math.round).join(',')})`;
   return (
@@ -30,6 +35,9 @@ function Thumb({ id }: { id: string }) {
         <path key={i} d={c.d} fill={rgb(c.fill)} stroke="rgba(255,255,255,0.35)" strokeWidth={0.04} />
       ))}
       <path d={svg.outline} fill="none" stroke="#efe5cc" strokeWidth={0.12} />
+      {svg.rocks.map((d, i) => (
+        <path key={i} d={d} fill="#a99274" stroke="rgba(30,24,18,0.7)" strokeWidth={0.04} />
+      ))}
       {svg.spa && <circle cx={svg.spa.position.x} cy={svg.spa.position.y} r={svg.spa.diameter / 2} fill="rgba(95,214,205,0.25)" stroke="#9fe" strokeWidth={0.08} strokeDasharray="0.3 0.2" />}
       {svg.features.map((f) =>
         f.polygon ? (

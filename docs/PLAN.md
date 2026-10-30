@@ -128,3 +128,14 @@ deltas.
 - The PR description includes screenshots of the 3D view and the plan for 2 templates, plus Netlify
   setup steps.
 - Every invented spec value is marked `verified: false` in `naturiSpecs.ts` and listed in the PR.
+
+## Progress log
+
+- **Phases 0 + 1** — merged in PR #1.
+- **Photo finishes + rockwork** (early slice of phase 2's feature library):
+  - designers import photos of physical Naturi samples, which become seamless 2K/4K PBR maps, with a
+    bundled official set under `public/materials/`;
+  - rockwork builder for rock walls, waterfalls (sheet/cascade) and grottos;
+  - doc schema v2 adds `rockwork[]`, with a migration from v1.
+  - Official Naturi photos are still needed. Shoot the physical samples, or get Naturi's
+    permission, then add them via **Download maps** → `public/materials/`.

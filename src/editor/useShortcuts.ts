@@ -36,6 +36,9 @@ export function useShortcuts() {
         } else if (sel?.kind === 'zone') {
           updateDoc((d) => void (d.zones = d.zones.filter((z) => z.id !== sel.id)));
           ui.select(null);
+        } else if (sel?.kind === 'rockwork') {
+          updateDoc((d) => void (d.rockwork = d.rockwork.filter((r) => r.id !== sel.id)));
+          ui.select(null);
         } else if (sel?.kind === 'feature') {
           updateDoc((d) => void (d.features = d.features.filter((f) => f.id !== sel.id)));
           ui.select(null);
