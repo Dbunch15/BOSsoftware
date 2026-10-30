@@ -29,6 +29,7 @@ export const Region = {
   ShelfEdge: 7,
   /** Lateral transition at the sides of a beach span. */
   BeachWing: 8,
+  Lawn: 9,
 } as const;
 export type RegionId = (typeof Region)[keyof typeof Region];
 
@@ -51,7 +52,12 @@ export interface FloorField extends GridSpec {
   deckHeight: number;
 }
 
-export const DECK_RING = 1.2;
+/** Margin of grid kept around the outline beyond the sand lip (deck ring + a strip of lawn). */
+export const DECK_RING = 1.9;
+/** Width of the paver deck ring beyond the sand lip. */
+export const DECK_WIDTH = 1.22;
+/** Lawn sits slightly below the deck. */
+export const LAWN_DROP = 0.035;
 export const TARGET_CELL = 0.1;
 export const MAX_CELLS = 140_000;
 /** Fraction of the available length in front of a beach span that the beach run may use. */
@@ -314,8 +320,9 @@ export function computeFloorField(input: FloorInput): FloorField {
     const d = sdf[k];
     if (d <= 0) {
       const t = lipWidth > 0 ? clamp(-d / lipWidth, 0, 1) : 1;
-      elev[k] = deckHeight * smoothstep(0, 1, t);
-      region[k] = t < 1 ? Region.Lip : Region.Deck;
+      const lawn = smoothstep(lipWidth + DECK_WIDTH, lipWidth + DECK_WIDTH + 0.16, -d);
+      elev[k] = deckHeight * smoothstep(0, 1, t) - LAWN_DROP * lawn;
+      region[k] = t < 1 ? Region.Lip : lawn > 0.5 ? Region.Lawn : Region.Deck;
       continue;
     }
 

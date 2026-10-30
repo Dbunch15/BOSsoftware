@@ -85,7 +85,7 @@ export const TEMPLATES: TemplateInfo[] = [
     name: 'Kidney + spa',
     blurb: 'Classic kidney with a bench in the inner curve and a raised spa placeholder.',
     build: () => {
-      const pts = polar(14, 5, 2.9, (th) => 1 - 0.32 * Math.exp(-(angDiff(th, Math.PI / 2) ** 2) / 0.25));
+      const pts = polar(14, 5, 2.9, (th) => 1 - 0.42 * Math.exp(-(angDiff(th, Math.PI / 2) ** 2) / 0.22));
       return doc(
         pts,
         [

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TEMPLATES, createFromTemplate } from '../templates';
 import { NATURI_SPECS } from '../specs/naturiSpecs';
 import { buildModel } from './buildModel';
-import { BEACH_ROOM, Region, computeFloorField, sampleDepth } from './floorField';
+import { BEACH_ROOM, LAWN_DROP, Region, computeFloorField, sampleDepth } from './floorField';
 import { centroid } from './geometry';
 import type { BeachEntry, DeepZone, ProjectDoc } from './schema';
 import { frameAt, polylineSamples, spanFraction } from './spline';
@@ -24,10 +24,13 @@ describe('floor field — templates', () => {
     expect(m.stats.maxDepth).toBeGreaterThan(1.2);
     expect(m.stats.maxDepth).toBeLessThanOrEqual(NATURI_SPECS.maxDepth.value);
     expect(m.violations.map((v) => v.id)).toEqual([]);
-    // Waterline is at 0; deck sits at deck height outside.
+    // Waterline is at 0; the paver deck sits at deck height, the lawn just below it.
     const corner = 0;
-    expect(m.field.region[corner]).toBe(Region.Deck);
-    expect(m.field.elev[corner]).toBeCloseTo(m.doc.shell.deckHeight, 5);
+    expect(m.field.region[corner]).toBe(Region.Lawn);
+    expect(m.field.elev[corner]).toBeCloseTo(m.doc.shell.deckHeight - LAWN_DROP, 5);
+    const lip = m.doc.shell.lipWidth;
+    const deckCell = m.field.sdf.findIndex((d, k) => m.field.region[k] === Region.Deck && d < -(lip + 0.3) && d > -(lip + 0.9));
+    expect(m.field.elev[deckCell]).toBeCloseTo(m.doc.shell.deckHeight, 5);
   });
 
   it('lagoon: deep end reaches its depth, base floor at base depth, beach ramps linearly', () => {
