@@ -5,6 +5,7 @@ import { FINISHES, finishById } from '../specs/finishes';
 import { updateDoc, useDoc } from '../state/docStore';
 import { renameProject, useProjects } from '../state/projects';
 import { type RockPreset, isSculptTool, useUi } from '../state/uiStore';
+import type { BrushShape } from '../editor/sculpt';
 import { formatLength } from '../units/format';
 import { Field, LengthInput, Segmented, Slider, TextInput } from './controls';
 import { ROCK_TYPES, type Rockwork } from '../model/schema';
@@ -77,6 +78,18 @@ function ToolPanel() {
       <Field label="Size" full>
         <Slider label="Brush size" min={0.2} max={3} step={0.05} value={brush.radius} onChange={(radius) => setBrush({ radius })} format={(v) => formatLength(v * 2, units)} />
       </Field>
+      <Field label="Shape" full>
+        <Segmented<BrushShape>
+          label="Brush shape"
+          value={brush.shape}
+          onChange={(shape) => setBrush({ shape })}
+          options={[
+            { value: 'round', label: 'Round', testId: 'shape-round' },
+            { value: 'flat', label: 'Flat', testId: 'shape-flat' },
+            { value: 'noise', label: 'Noise', testId: 'shape-noise' },
+          ]}
+        />
+      </Field>
       <Field label="Strength" full>
         <Slider label="Brush strength" min={0.05} max={1} step={0.05} value={brush.strength} onChange={(strength) => setBrush({ strength })} format={(v) => `${Math.round(v * 100)}%`} />
       </Field>
@@ -90,7 +103,7 @@ function ToolPanel() {
         Pen pressure controls strength
       </label>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-        <span className="tiny">{cells.toLocaleString()} sculpted cells · [ ] size</span>
+        <span className="tiny">{cells.toLocaleString()} sculpted cells · scroll or [ ] size</span>
         <button
           className="btn sm"
           disabled={!cells}

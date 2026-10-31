@@ -92,12 +92,25 @@ All values are stored in meters and formatted only for display.
 | `src/rockwork/` | seeded boulder layout for walls, waterfalls and grottos |
 | `src/materials/` | sample-photo pipeline (seamless tile, normal/roughness), finish photo library |
 
+## Controls
+
+- **Hotbar:** `1`–`9` pick a slot, `Alt+1`–`9` put the current tool in a slot, and scrolling over the
+  hotbar cycles through it.
+- **Tool wheel:** hold `Q`, point at a tool, release.
+- **3D:** left-drag orbits and middle-drag pans. Hold the right mouse button to fly: move the mouse to
+  look, `WASD` to move, `Space`/`Shift` to go up and down, `Ctrl` to go faster, scroll to change speed.
+- **Editing in 3D:** drag outline points, zone points and rockwork line points directly in 3D, and
+  click rockwork to select it or drag it to move it.
+- **Sculpting:** scroll sets brush size, `Ctrl`+scroll sets strength, `Shift`+scroll zooms. Brushes
+  come in round, flat and noise shapes, and the 3D view shows a ghost of the result before you
+  paint.
+
 ## Keyboard
 
 `V` select · `P` freehand outline · `I` add point · `X` remove point · `B` beach · `N` bench ·
-`S` sun shelf · `D` deep zone · `K` rockwork · `E` deepen · `R` raise · `M` smooth · `F` flatten (Alt-click
-samples a depth) · `H` pan · `[` `]` brush size · `Shift+[` `]` strength · `Ctrl+Z` /
-`Ctrl+Shift+Z` undo/redo · `1` `2` `3` layouts · `.` frame · `T` 3D top view · `W` water ·
+`S` sun shelf · `D` deep zone · `K` rockwork · `E` deepen · `R` raise · `M` smooth · `F` flatten
+(Alt-click samples a depth) · `H` pan · `[` `]` brush size · `Shift+[` `]` strength · `Ctrl+Z` /
+`Ctrl+Shift+Z` undo/redo · `Shift+1` `2` `3` layouts · `.` frame · `T` 3D top view · `W` water ·
 `U` units · `?` help.
 
 ## Credits

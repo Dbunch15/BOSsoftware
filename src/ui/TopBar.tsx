@@ -38,9 +38,9 @@ export function TopBar() {
         value={layout}
         onChange={(l) => useUi.getState().setLayout(l)}
         options={[
-          { value: 'split', label: <Icon name="split" size={15} />, title: 'Split view (1)' },
-          { value: 'plan', label: <Icon name="plan" size={15} />, title: 'Plan only (2)' },
-          { value: '3d', label: <Icon name="cube" size={15} />, title: '3D only (3)' },
+          { value: 'split', label: <Icon name="split" size={15} />, title: 'Split view (Shift+1)' },
+          { value: 'plan', label: <Icon name="plan" size={15} />, title: 'Plan only (Shift+2)' },
+          { value: '3d', label: <Icon name="cube" size={15} />, title: '3D only (Shift+3)' },
         ]}
       />
       <Segmented

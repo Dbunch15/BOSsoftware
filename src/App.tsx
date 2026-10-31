@@ -10,6 +10,8 @@ import { ShortcutsDialog } from './ui/ShortcutsDialog';
 import { StatusStrip } from './ui/StatusStrip';
 import { TemplateGallery } from './ui/TemplateGallery';
 import { ToolRail } from './ui/ToolRail';
+import { Hotbar } from './ui/Hotbar';
+import { ToolWheel } from './ui/ToolWheel';
 import { TopBar } from './ui/TopBar';
 import { Viewport3D } from './viewport/Viewport3D';
 
@@ -39,6 +41,8 @@ export default function App() {
           <PaneHead title="3D" maximized={layout === '3d'} onToggle={() => useUi.getState().setLayout(layout === '3d' ? 'split' : '3d')} kind="3d" />
         </section>
       </main>
+      <Hotbar />
+      <ToolWheel />
       <Inspector />
       <StatusStrip />
       {ready && galleryOpen && <TemplateGallery />}

@@ -129,6 +129,7 @@ export function ShellMesh({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onClick,
   caustics,
 }: {
   model: Model;
@@ -136,6 +137,7 @@ export function ShellMesh({
   onPointerDown?: (e: ThreeEvent<PointerEvent>) => void;
   onPointerMove?: (e: ThreeEvent<PointerEvent>) => void;
   onPointerUp?: (e: ThreeEvent<PointerEvent>) => void;
+  onClick?: (e: ThreeEvent<MouseEvent>) => void;
   caustics: number;
 }) {
   const f = model.field;
@@ -264,6 +266,7 @@ export function ShellMesh({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onClick={onClick}
     />
   );
 }
