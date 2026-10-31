@@ -160,7 +160,15 @@ export function PlanEditor() {
       const rect = el.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      if (e.shiftKey) {
+      // While sculpting the wheel sizes the brush (Ctrl: strength); Shift+wheel zooms instead.
+      const ui = useUi.getState();
+      if (isSculptTool(ui.tool) && !e.shiftKey) {
+        const d = e.deltaY || e.deltaX;
+        if (e.ctrlKey || e.metaKey) ui.setBrush({ strength: Math.min(1, Math.max(0.05, Math.round((ui.brush.strength - d * 0.0008) * 100) / 100)) });
+        else ui.setBrush({ radius: Math.min(4, Math.max(0.15, ui.brush.radius * Math.exp(-d * 0.0015))) });
+        return;
+      }
+      if (e.shiftKey && !isSculptTool(ui.tool)) {
         setView((v) => ({ ...v, tx: v.tx - e.deltaY, ty: v.ty - e.deltaX }));
         return;
       }
@@ -194,6 +202,7 @@ export function PlanEditor() {
           strength: brush.strength,
           pressure,
           flattenDepth: brush.flattenDepth,
+          shape: brush.shape,
         });
       });
     },

@@ -3,6 +3,9 @@ import { getDoc, redo, undo, updateDoc } from '../state/docStore';
 import { useUi } from '../state/uiStore';
 import { isTyping } from '../ui/hooks';
 import { toolByKey } from '../ui/tools';
+import { assignSlot, slotForCode } from '../controls/hotbar';
+
+const lastPointer = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 
 export function useShortcuts() {
   useEffect(() => {
@@ -20,6 +23,23 @@ export function useShortcuts() {
       if (mod && k.toLowerCase() === 'y') {
         e.preventDefault();
         redo();
+        return;
+      }
+      // Hotbar: 1–9 pick a slot; Alt+1–9 stores the current tool there; Shift+1/2/3 switch layout.
+      const slot = slotForCode(e.code);
+      if (slot >= 0 && !mod) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          if (slot === 0) ui.setLayout('split');
+          if (slot === 1) ui.setLayout('plan');
+          if (slot === 2) ui.setLayout('3d');
+        } else if (e.altKey) ui.setHotbar(assignSlot(ui.hotbar, slot, ui.tool));
+        else ui.setTool(ui.hotbar[slot]);
+        return;
+      }
+      if (e.code === 'KeyQ' && !mod && !e.altKey) {
+        e.preventDefault();
+        if (!e.repeat && !ui.wheel) ui.set({ wheel: { x: lastPointer.x, y: lastPointer.y } });
         return;
       }
       if (mod || e.altKey) return;
@@ -52,9 +72,6 @@ export function useShortcuts() {
         else ui.setBrush({ radius: Math.min(3, Math.max(0.2, ui.brush.radius * (up ? 1.15 : 1 / 1.15))) });
         return;
       }
-      if (k === '1') return ui.setLayout('split');
-      if (k === '2') return ui.setLayout('plan');
-      if (k === '3') return ui.setLayout('3d');
       if (k === '.') return ui.requestFit();
       if (k === '?') return ui.set({ helpOpen: !ui.helpOpen });
       if (k.toLowerCase() === 't') return ui.cameraPreset('top');
@@ -66,7 +83,15 @@ export function useShortcuts() {
       const tool = toolByKey(k);
       if (tool) ui.setTool(tool.id);
     };
+    const onPointer = (e: PointerEvent) => {
+      lastPointer.x = e.clientX;
+      lastPointer.y = e.clientY;
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('pointermove', onPointer, { passive: true });
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointermove', onPointer);
+    };
   }, []);
 }

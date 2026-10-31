@@ -47,3 +47,21 @@ export const TOOL_GROUPS: Array<{ label: string; tools: ToolInfo[] }> = [
 
 export const ALL_TOOLS = TOOL_GROUPS.flatMap((g) => g.tools);
 export const toolByKey = (key: string) => ALL_TOOLS.find((t) => t.key.toLowerCase() === key.toLowerCase());
+
+/** Icon name for each tool. */
+export const TOOL_ICON: Record<string, string> = {
+  select: 'select',
+  pen: 'pen',
+  insert: 'insert',
+  remove: 'remove',
+  beach: 'beach',
+  bench: 'bench',
+  shelf: 'shelf',
+  deep: 'deep',
+  deepen: 'deepen',
+  raise: 'raise',
+  smooth: 'smooth',
+  flatten: 'flatten',
+  rock: 'rock',
+  pan: 'pan',
+};

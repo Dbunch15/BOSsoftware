@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import type { Vec2 } from '../model/geometry';
+import type { BrushShape } from '../editor/sculpt';
+import { loadHotbar, saveHotbar } from '../controls/hotbar';
 
 export type Tool =
   | 'select'
@@ -41,6 +43,7 @@ export interface BrushSettings {
   /** Target depth for flatten (m). */
   flattenDepth: number;
   usePressure: boolean;
+  shape: BrushShape;
 }
 
 interface UiState {
@@ -49,6 +52,12 @@ interface UiState {
   layout: Layout;
   brush: BrushSettings;
   rockPreset: RockPreset;
+  /** Nine hotbar slots (keys 1–9). */
+  hotbar: Tool[];
+  /** Radial tool wheel, open while Q is held. */
+  wheel: { x: number; y: number } | null;
+  /** 3D fly camera status while right mouse is held. */
+  flight: { speed: number } | null;
   showWater: boolean;
   showHeatmap: boolean;
   showContours: boolean;
@@ -68,6 +77,7 @@ interface UiState {
   focusOn: (at: Vec2 | null) => void;
   requestFit: () => void;
   cameraPreset: (preset: 'persp' | 'top') => void;
+  setHotbar: (slots: Tool[]) => void;
 }
 
 /** `?quality=low` starts with the cheap render path (handy for slow GPUs and automated tests). */
@@ -83,7 +93,10 @@ export const useUi = create<UiState>()((set) => ({
   tool: 'select',
   selection: null,
   layout: 'split',
-  brush: { radius: 0.9, strength: 0.5, flattenDepth: 1.2, usePressure: true },
+  brush: { radius: 0.9, strength: 0.5, flattenDepth: 1.2, usePressure: true, shape: 'round' },
+  hotbar: loadHotbar(),
+  wheel: null,
+  flight: null,
   rockPreset: 'waterfall',
   showWater: true,
   showHeatmap: true,
@@ -102,4 +115,8 @@ export const useUi = create<UiState>()((set) => ({
   focusOn: (at) => set((s) => ({ focus: { at, nonce: s.focus.nonce + 1 } })),
   requestFit: () => set((s) => ({ fitNonce: s.fitNonce + 1, camPreset: { preset: 'persp', nonce: s.camPreset.nonce + 1 } })),
   cameraPreset: (preset) => set((s) => ({ camPreset: { preset, nonce: s.camPreset.nonce + 1 } })),
+  setHotbar: (hotbar) => {
+    saveHotbar(hotbar);
+    set({ hotbar });
+  },
 }));

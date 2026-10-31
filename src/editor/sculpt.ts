@@ -5,7 +5,63 @@ import type { Vec2 } from '../model/geometry';
 import { clamp } from '../model/geometry';
 import type { SculptTool } from '../state/uiStore';
 
+export type BrushShape = 'round' | 'flat' | 'noise';
+
+/**
+ * Brush falloff at normalised radius r (0 centre, 1 rim). Round eases smoothly to the rim; flat
+ * keeps full strength over the inner 60% for crisp terraces; noise breaks the round falloff up
+ * with value noise for natural, uneven sculpting.
+ */
+export function brushFalloff(r: number, shape: BrushShape, x = 0, y = 0): number {
+  if (r >= 1) return 0;
+  const round = (1 - r * r) ** 2;
+  if (shape === 'flat') {
+    if (r <= 0.6) return 1;
+    const t = (r - 0.6) / 0.4;
+    return 1 - t * t * (3 - 2 * t);
+  }
+  if (shape === 'noise') return round * (0.35 + 1.3 * valueNoise(x * 2.7, y * 2.7));
+  return round;
+}
+
+function hash(i: number, j: number): number {
+  let h = Math.imul(i, 374761393) ^ Math.imul(j, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+function valueNoise(x: number, y: number): number {
+  const i = Math.floor(x);
+  const j = Math.floor(y);
+  const fx = x - i;
+  const fy = y - j;
+  const u = fx * fx * (3 - 2 * fx);
+  const v = fy * fy * (3 - 2 * fy);
+  const a = hash(i, j) + (hash(i + 1, j) - hash(i, j)) * u;
+  const b = hash(i, j + 1) + (hash(i + 1, j + 1) - hash(i, j + 1)) * u;
+  return a + (b - a) * v;
+}
+
+/** Predicted depth change of one dab at a point, without applying it (for brush ghosts). */
+export function predictDelta(dab: BrushDab, p: Vec2, currentDepth: number, avgDepth: number): number {
+  const r = Math.hypot(p.x - dab.center.x, p.y - dab.center.y) / dab.radius;
+  const fall = brushFalloff(r, dab.shape ?? 'round', p.x, p.y);
+  if (!fall) return 0;
+  const amount = clamp(dab.strength, 0, 1) * clamp(dab.pressure, 0.05, 1);
+  switch (dab.mode) {
+    case 'deepen':
+      return DAB_DEPTH * amount * fall;
+    case 'raise':
+      return -DAB_DEPTH * amount * fall;
+    case 'smooth':
+      return (avgDepth - currentDepth) * 0.5 * amount * fall;
+    case 'flatten':
+      return (dab.flattenDepth - currentDepth) * 0.35 * amount * fall;
+  }
+}
+
 export interface BrushDab {
+  shape?: BrushShape;
   mode: SculptTool;
   center: Vec2;
   radius: number;
@@ -56,7 +112,8 @@ export function applyDab(cells: Record<string, number>, cellSize: number, model:
       const r = Math.hypot(p.x - center.x, p.y - center.y) / radius;
       if (r >= 1) continue;
       if (sdfAt(model, p) <= 0.05) continue; // only sculpt inside the waterline
-      const fall = (1 - r * r) ** 2;
+      const fall = brushFalloff(r, dab.shape ?? 'round', p.x, p.y);
+      if (!fall) continue;
       const k = key(i, j);
       const cur = sampleDepth(f, p);
       let delta = 0;
