@@ -19,6 +19,7 @@ import { RULE_LABELS } from '../rules';
 import { formatQuantity } from '../units/format';
 import { LAWN_TINT, ShellMesh } from './ShellMesh';
 import { Water } from './Water';
+import { Rockwork3D } from './Rockwork3D';
 import { grassTexture } from './textures';
 
 const HDRI = `${import.meta.env.BASE_URL}hdri/rooitou_park_1k.hdr`;
@@ -30,6 +31,9 @@ export function Viewport3D() {
   const quality = useUi((s) => s.quality);
   const onBuilt = useCallback((sig: string) => {
     ref.current?.setAttribute('data-mesh-sig', sig);
+  }, []);
+  const onRocks = useCallback((n: number) => {
+    ref.current?.setAttribute('data-rock-count', String(n));
   }, []);
   return (
     <div ref={ref} className="viewport3d" data-testid="viewport3d">
@@ -46,7 +50,7 @@ export function Viewport3D() {
               ref.current?.setAttribute('data-ready', '1');
             }}
           >
-            <Scene onBuilt={onBuilt} />
+            <Scene onBuilt={onBuilt} onRocks={onRocks} />
           </Canvas>
         </GLBoundary>
       ) : (
@@ -56,7 +60,7 @@ export function Viewport3D() {
   );
 }
 
-function Scene({ onBuilt }: { onBuilt: (sig: string) => void }) {
+function Scene({ onBuilt, onRocks }: { onBuilt: (sig: string) => void; onRocks: (n: number) => void }) {
   const model = useModel();
   const tool = useUi((s) => s.tool);
   const quality = useUi((s) => s.quality);
@@ -104,9 +108,9 @@ function Scene({ onBuilt }: { onBuilt: (sig: string) => void }) {
       }
     : {};
 
-  const b = useMemo(() => bounds(model.outline.pts), [model.outline]);
+  const b = useMemo(() => bounds([...model.outline.pts, ...Object.values(model.rockwork).flatMap((l) => l.rocks.flatMap((r) => r.plan))]), [model.outline, model.rockwork]);
   const center = useMemo(() => new THREE.Vector3((b.minX + b.maxX) / 2, 0, (b.minY + b.maxY) / 2), [b]);
-  const radius = Math.max(b.maxX - b.minX, b.maxY - b.minY) / 2 + 2;
+  const radius = Math.max(b.maxX - b.minX, b.maxY - b.minY) / 2 + 1.5;
 
   return (
     <>
@@ -119,6 +123,7 @@ function Scene({ onBuilt }: { onBuilt: (sig: string) => void }) {
       {showWater && <Water model={model} quality={quality} />}
       <Ground model={model} />
       <Placeholders3D model={model} />
+      <Rockwork3D model={model} onRocks={onRocks} />
       <Markers model={model} />
       {sculptMode && brushAt && <BrushRing at={brushAt} radius={brush.radius} />}
       <CameraRig center={center} radius={radius} />
@@ -221,7 +226,7 @@ function Ground({ model }: { model: Model }) {
     return g;
   }, [f.x0, f.y0, f.nx, f.ny, f.cell, deck]);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  const material = useMemo(() => new THREE.MeshStandardMaterial({ map: grassTexture(), roughness: 0.95, color: LAWN_TINT, envMapIntensity: 0.6 }), []);
+  const material = useMemo(() => new THREE.MeshStandardMaterial({ map: grassTexture(), roughness: 0.85, color: LAWN_TINT, envMapIntensity: 0.9 }), []);
   return <mesh geometry={geometry} material={material} receiveShadow />;
 }
 

@@ -1,7 +1,7 @@
 /** New-project templates. Shapes are generated parametrically, then stored as editable control points. */
 import { DEFAULT_FINISH_ID } from '../specs/finishes';
 import type { Vec2 } from '../model/geometry';
-import { DOC_VERSION, type Feature, type ProjectDoc, type Spa, type Zone, newId } from '../model/schema';
+import { DOC_VERSION, type Feature, type ProjectDoc, type Rockwork, RockworkSchema, type Spa, type Zone, newId } from '../model/schema';
 import { controlPointUs } from '../model/spline';
 
 export interface TemplateInfo {
@@ -29,6 +29,20 @@ function ellipse(cx: number, cy: number, rx: number, ry: number, n = 8, wobble =
 
 const round = (v: number) => Math.round(v * 1000) / 1000;
 
+/** Points just outside a polar outline, for rockwork that stands at the pool edge. */
+function rimPath(rx: number, ry: number, r: (th: number) => number, from: number, to: number, out: number, n = 7): Vec2[] {
+  const pts: Vec2[] = [];
+  for (let k = 0; k < n; k++) {
+    const th = from + ((to - from) * k) / (n - 1);
+    const rr = r(th);
+    const x = Math.cos(th) * rx * rr;
+    const y = Math.sin(th) * ry * rr;
+    const l = Math.hypot(x, y) || 1;
+    pts.push({ x: round(x + (x / l) * out), y: round(y + (y / l) * out) });
+  }
+  return pts;
+}
+
 /** Span between two control-point indices (travelling forward). */
 function spanBetween(points: Vec2[], i0: number, i1: number) {
   const us = controlPointUs(points, 0.5);
@@ -42,7 +56,7 @@ const site = { placeholder: true as const, northAngle: 0, notes: '' };
 function doc(
   points: Vec2[],
   zones: Zone[],
-  extra: Partial<{ shell: Partial<typeof baseShell>; features: Feature[]; spa: Spa | null; finish: string }> = {},
+  extra: Partial<{ shell: Partial<typeof baseShell>; features: Feature[]; rockwork: Rockwork[]; spa: Spa | null; finish: string }> = {},
 ): Omit<ProjectDoc, 'id' | 'meta'> {
   return {
     version: DOC_VERSION,
@@ -53,6 +67,7 @@ function doc(
     zones,
     sculpt: { ...emptySculpt, cells: {} },
     features: extra.features ?? [],
+    rockwork: extra.rockwork ?? [],
     spa: extra.spa ?? null,
     site: { ...site },
   };
@@ -62,9 +77,20 @@ export const TEMPLATES: TemplateInfo[] = [
   {
     id: 'lagoon',
     name: 'Lagoon beach entry',
-    blurb: 'Organic 46×26 ft lagoon with a wide walk-in beach and a soft deep end.',
+    blurb: 'Organic 46×26 ft lagoon with a wide walk-in beach and a rock waterfall over the deep end.',
     build: () => {
-      const pts = polar(16, 7, 4, (th) => 1 + 0.08 * Math.sin(2 * th + 0.6) + 0.05 * Math.cos(3 * th));
+      const shape = (th: number) => 1 + 0.08 * Math.sin(2 * th + 0.6) + 0.05 * Math.cos(3 * th);
+      const pts = polar(16, 7, 4, shape);
+      const falls = RockworkSchema.parse({
+        id: newId(),
+        name: 'Rock waterfall',
+        path: rimPath(7, 4, shape, -0.62, 0.62, 0.7),
+        height: 1.45,
+        thickness: 1.5,
+        boulderSize: 0.75,
+        seed: 11,
+        waterfall: { enabled: true, span: { t0: 0.34, t1: 0.66 }, type: 'sheet' },
+      });
       return doc(pts, [
         {
           kind: 'beachEntry',
@@ -77,7 +103,7 @@ export const TEMPLATES: TemplateInfo[] = [
           taper: 1.2,
         },
         { kind: 'deepZone', id: newId(), name: 'Deep end', polygon: ellipse(4.3, 0.1, 1.8, 1.5), depth: 1.85, blend: 3 },
-      ]);
+      ], { rockwork: [falls] });
     },
   },
   {
@@ -151,9 +177,10 @@ export const TEMPLATES: TemplateInfo[] = [
   {
     id: 'long-beach-grotto',
     name: 'Long beach + grotto',
-    blurb: 'A 59 ft resort-style pool with a long shallow beach and a grotto placeholder.',
+    blurb: 'A 59 ft resort-style pool with a long shallow beach and a walk-behind rock grotto.',
     build: () => {
-      const pts = polar(20, 9, 3.2, (th) => 1 + 0.05 * Math.sin(3 * th) + 0.04 * Math.cos(5 * th + 1));
+      const shape = (th: number) => 1 + 0.05 * Math.sin(3 * th) + 0.04 * Math.cos(5 * th + 1);
+      const pts = polar(20, 9, 3.2, shape);
       return doc(
         pts,
         [
@@ -171,16 +198,18 @@ export const TEMPLATES: TemplateInfo[] = [
         ],
         {
           shell: { baseDepth: 1.4 },
-          features: [
-            {
+          rockwork: [
+            RockworkSchema.parse({
               id: newId(),
-              kind: 'grotto',
               name: 'Grotto',
-              position: { x: 9.8, y: -0.8 },
-              rotation: 0,
-              size: { x: 3, y: 2.4 },
-              placeholder: true,
-            },
+              path: rimPath(9, 3.2, shape, -0.75, 0.75, 1.0, 9),
+              height: 2.1,
+              thickness: 2.2,
+              boulderSize: 0.85,
+              seed: 5,
+              grotto: { enabled: true, span: { t0: 0.25, t1: 0.75 }, openingHeight: 1.25 },
+              waterfall: { enabled: true, span: { t0: 0.1, t1: 0.22 }, type: 'cascade' },
+            }),
           ],
         },
       );

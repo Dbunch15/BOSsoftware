@@ -4,7 +4,7 @@
  */
 import { z } from 'zod';
 
-export const DOC_VERSION = 1;
+export const DOC_VERSION = 2;
 
 export const Vec2Schema = z.object({ x: z.number(), y: z.number() });
 
@@ -101,6 +101,49 @@ export const FeatureSchema = z.object({
   placeholder: z.literal(true).default(true),
 });
 
+export const ROCK_TYPES = ['sandstone', 'granite', 'limestone', 'basalt'] as const;
+
+/** Fraction range along a rockwork spine (0 = first point, 1 = last). */
+export const SpineSpanSchema = z.object({ t0: z.number().min(0).max(1), t1: z.number().min(0).max(1) });
+
+/**
+ * Natural rockwork built from stacked boulders along a spine: a rock wall, optionally with a
+ * waterfall spilling from its top and/or a grotto opening through it.
+ */
+export const RockworkSchema = z.object({
+  id: z.string(),
+  name: z.string().default('Rockwork'),
+  /** Plan polyline the rocks are stacked along. */
+  path: z.array(Vec2Schema).min(2),
+  /** Top of the rockwork above the deck (m). */
+  height: z.number().positive().default(1.2),
+  /** Footprint depth across the spine (m). */
+  thickness: z.number().positive().default(1.3),
+  /** Typical boulder diameter (m). */
+  boulderSize: z.number().positive().default(0.75),
+  /** 0 = smooth river rock, 1 = sharp quarried rock. */
+  jaggedness: z.number().min(0).max(1).default(0.5),
+  rockType: z.enum(ROCK_TYPES).default('sandstone'),
+  /** Layout seed; "reshuffle" picks a new one. */
+  seed: z.number().int().default(1),
+  waterfall: z
+    .object({
+      enabled: z.boolean().default(false),
+      span: SpineSpanSchema.default({ t0: 0.35, t1: 0.65 }),
+      /** sheet = smooth spill lip; cascade = water tumbling over stepped rocks. */
+      type: z.enum(['sheet', 'cascade']).default('sheet'),
+    })
+    .default({ enabled: false, span: { t0: 0.35, t1: 0.65 }, type: 'sheet' }),
+  grotto: z
+    .object({
+      enabled: z.boolean().default(false),
+      span: SpineSpanSchema.default({ t0: 0.3, t1: 0.7 }),
+      /** Clear height of the opening above the ground at its center (m). */
+      openingHeight: z.number().positive().default(1.1),
+    })
+    .default({ enabled: false, span: { t0: 0.3, t1: 0.7 }, openingHeight: 1.1 }),
+});
+
 export const SpaSchema = z.object({
   placeholder: z.literal(true).default(true),
   position: Vec2Schema,
@@ -149,6 +192,7 @@ export const ProjectDocSchema = z.object({
   zones: z.array(ZoneSchema).default([]),
   sculpt: SculptSchema,
   features: z.array(FeatureSchema).default([]),
+  rockwork: z.array(RockworkSchema).default([]),
   spa: SpaSchema.nullable().default(null),
   site: SiteSchema,
 });
@@ -164,6 +208,8 @@ export type Shell = z.infer<typeof ShellSchema>;
 export type Feature = z.infer<typeof FeatureSchema>;
 export type FeatureKind = Feature['kind'];
 export type Spa = z.infer<typeof SpaSchema>;
+export type Rockwork = z.infer<typeof RockworkSchema>;
+export type RockType = Rockwork['rockType'];
 export type Units = ProjectDoc['units'];
 export type Span = z.infer<typeof SpanSchema>;
 
@@ -174,6 +220,8 @@ export type Span = z.infer<typeof SpanSchema>;
 const MIGRATIONS: Record<number, (raw: Record<string, unknown>) => Record<string, unknown>> = {
   // Version 0 was never shipped; treat missing version as a v1 draft.
   0: (raw) => ({ ...raw, version: 1 }),
+  // v2 adds the rockwork builder.
+  1: (raw) => ({ ...raw, version: 2, rockwork: Array.isArray(raw.rockwork) ? raw.rockwork : [] }),
 };
 
 export function migrateDoc(raw: unknown): ProjectDoc {

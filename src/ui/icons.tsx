@@ -62,6 +62,12 @@ const P: Record<string, ReactNode> = {
       <path d="M5.5 10h9M7 7l3 2 3-2M7 13l3-2 3 2" />
     </>
   ),
+  rock: (
+    <>
+      <path d="M2.5 16l2.5-5 3 1.5 3-5 3.5 3 3 5.5z" />
+      <path d="M8 12.5l-1 3.5M11 7.5l.5 3" opacity=".6" />
+    </>
+  ),
   pan: <path d="M7 10V4.5a1.2 1.2 0 012.4 0V9m0-5.5a1.2 1.2 0 012.4 0V9m0-4a1.2 1.2 0 012.4 0v6c0 4-2 6-5.2 6-2.2 0-3.3-1-4.6-3L3 11.4a1.2 1.2 0 012-1.3L7 12" />,
   undo: <path d="M7 5L3 9l4 4M3 9h9a5 5 0 010 10h-2" transform="translate(0 -2)" />,
   redo: <path d="M13 5l4 4-4 4M17 9H8a5 5 0 000 10h2" transform="translate(0 -2)" />,

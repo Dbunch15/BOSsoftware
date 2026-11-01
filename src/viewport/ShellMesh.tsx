@@ -6,10 +6,12 @@ import type { Model } from '../model/buildModel';
 import { DECK_WIDTH } from '../model/floorField';
 import { finishById } from '../specs/finishes';
 import { deckTexture, finishTexture, grassTexture } from './textures';
+import { useFinishMaps } from './useFinishMaps';
 
 export const LAWN_TINT = '#c8d6b6';
 
-const FINISH_TILE = 0.6;
+/** Real-world size of one procedural finish tile (m). */
+const PROCEDURAL_TILE = 0.6;
 /** Blend width between finish / deck / lawn (wider than a cell to avoid stair-stepping). */
 const EDGE = 0.16;
 
@@ -44,7 +46,19 @@ uniform float uTime;
 uniform vec3 uWarn;
 uniform vec3 uCrit;
 uniform float uCaustics;
+uniform float uDeckRoughness;
 varying float vRegion;
+float hash21(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+float valueNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), u.x), mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), u.x), u.y);
+}
 varying float vFlag;
 varying vec3 vWPos;
 float causticPattern(vec2 uv, float t) {
@@ -65,7 +79,11 @@ float causticPattern(vec2 uv, float t) {
       .replace(
         '#include <map_fragment>',
         `#ifdef USE_MAP
-  vec4 finishCol = texture2D(map, vMapUv);
+  // Anti-tiling: blend the finish with a rotated, rescaled copy of itself by low-frequency noise
+  // so a ~30 cm photo tile doesn't read as a grid across a 40 ft pool.
+  float tileMix = smoothstep(0.3, 0.7, valueNoise(vMapUv * 0.37));
+  vec2 uvAlt = mat2(0.788, -0.616, 0.616, 0.788) * vMapUv * 0.83 + vec2(0.37, 0.71);
+  vec4 finishCol = mix(texture2D(map, vMapUv), texture2D(map, uvAlt), tileMix);
   vec4 deckCol = texture2D(uDeckMap, vWPos.xz / 1.22);
   vec3 grassCol = texture2D(uGrassMap, vWPos.xz / 2.5).rgb * uGrassTint;
   float finishW = clamp(vRegion, 0.0, 1.0);
@@ -75,12 +93,19 @@ float causticPattern(vec2 uv, float t) {
   diffuseColor.rgb *= baseCol;
 #else
   float wet = 0.0;
+  float finishW = 1.0;
 #endif`,
       )
       .replace(
         '#include <roughnessmap_fragment>',
         `#include <roughnessmap_fragment>
+roughnessFactor = mix(uDeckRoughness, roughnessFactor, finishW);
 roughnessFactor = mix(roughnessFactor, 0.5, wet);`,
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+normal = normalize(mix(nonPerturbedNormal, normal, finishW));`,
       )
       .replace(
         '#include <emissivemap_fragment>',
@@ -95,7 +120,7 @@ float caust = causticPattern(vWPos.xz / 1.7, uTime * 0.55) * under * exp(vWPos.y
 totalEmissiveRadiance += vec3(0.85, 1.0, 0.95) * caust * uCaustics * clamp(vRegion, 0.0, 1.0);`,
       );
   };
-  mat.customProgramCacheKey = () => 'naturi-shell-v1';
+  mat.customProgramCacheKey = () => 'naturi-shell-v2';
 }
 
 export function ShellMesh({
@@ -125,6 +150,7 @@ export function ShellMesh({
       uWarn: { value: new THREE.Color('#f5a524') },
       uCrit: { value: new THREE.Color('#f0524f') },
       uCaustics: { value: 0.22 },
+      uDeckRoughness: { value: 0.85 },
     }),
     [],
   );
@@ -135,11 +161,24 @@ export function ShellMesh({
     return m;
   }, [uniforms]);
 
+  const photo = useFinishMaps(finish.id);
   useEffect(() => {
-    material.map = finishTexture(finish);
-    material.roughness = finish.roughness;
+    if (photo) {
+      material.map = photo.albedo;
+      material.normalMap = photo.normal ?? null;
+      material.roughnessMap = photo.roughness ?? null;
+      material.roughness = photo.roughness ? 1 : finish.roughness;
+      material.normalScale.set(0.9, 0.9);
+    } else {
+      const t = finishTexture(finish);
+      t.repeat.set(1 / PROCEDURAL_TILE, 1 / PROCEDURAL_TILE);
+      material.map = t;
+      material.normalMap = null;
+      material.roughnessMap = null;
+      material.roughness = finish.roughness;
+    }
     material.needsUpdate = true;
-  }, [material, finish]);
+  }, [material, finish, photo]);
 
   useEffect(() => {
     uniforms.uCaustics.value = caustics;
@@ -193,8 +232,9 @@ export function ShellMesh({
         P[k * 3] = x;
         P[k * 3 + 1] = f.elev[k];
         P[k * 3 + 2] = y;
-        U[k * 2] = x / FINISH_TILE;
-        U[k * 2 + 1] = y / FINISH_TILE;
+        // UVs in meters; each finish texture's repeat sets its real-world scale.
+        U[k * 2] = x;
+        U[k * 2 + 1] = y;
         // 1 = finish (pool + sand lip), 0 = paver deck, -1 = lawn; blended across each edge.
         const out = -f.sdf[k];
         R[k] = out <= lip ? 1 : out <= lip + EDGE ? 1 - (out - lip) / EDGE : out <= lip + DECK_WIDTH ? 0 : -Math.min(1, (out - lip - DECK_WIDTH) / EDGE);

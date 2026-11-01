@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { PlanEditor } from './editor/PlanEditor';
 import { useShortcuts } from './editor/useShortcuts';
+import { initFinishLibrary } from './materials/finishLibrary';
 import { initProjects, useProjects } from './state/projects';
 import { useUi } from './state/uiStore';
 import { Icon } from './ui/icons';
@@ -21,6 +22,7 @@ export default function App() {
 
   useEffect(() => {
     void initProjects();
+    void initFinishLibrary();
   }, []);
 
   return (

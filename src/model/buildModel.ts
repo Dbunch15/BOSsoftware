@@ -3,9 +3,10 @@
  * the Model, never from raw doc geometry, which keeps them in lock-step.
  */
 import { DEFAULT_SPECS, type SpecTable } from '../specs/naturiSpecs';
+import { type RockEnv, type RockLayout, buildRockwork } from '../rockwork/buildRockwork';
 import { runRules, type Violation } from '../rules';
 import { type Contour, contourLevels, depthContours } from './contours';
-import { type FloorField, computeFloorField } from './floorField';
+import { type FloorField, LAWN_DROP, computeFloorField, sampleDepth } from './floorField';
 import type { Vec2 } from './geometry';
 import type { ProjectDoc } from './schema';
 import { type OutlineSamples, extractSpan, sampleOutline } from './spline';
@@ -24,6 +25,8 @@ export interface Model {
   outlineFlags: Uint8Array;
   /** Sampled zone shapes for display (closed polygons or open spans). */
   zoneShapes: Record<string, Vec2[]>;
+  /** Boulder layouts per rockwork feature. */
+  rockwork: Record<string, RockLayout>;
   buildMs: number;
 }
 
@@ -78,6 +81,10 @@ export function buildModel(doc: ProjectDoc, specs: SpecTable = DEFAULT_SPECS): M
         : sampleOutline(z.polygon, doc.outline.alpha, 0.1).pts;
   }
 
+  const env = rockEnv(field);
+  const rockwork: Record<string, RockLayout> = {};
+  for (const rw of doc.rockwork) rockwork[rw.id] = buildRockwork(rw, env);
+
   const t1 = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const model: Model = {
     doc,
@@ -89,8 +96,25 @@ export function buildModel(doc: ProjectDoc, specs: SpecTable = DEFAULT_SPECS): M
     cellFlags,
     outlineFlags,
     zoneShapes,
+    rockwork,
     buildMs: t1 - t0,
   };
   last = { doc, specs, model };
   return model;
+}
+
+/** Ground and water lookups for placing rocks on the modelled floor/deck/lawn. */
+export function rockEnv(field: FloorField): RockEnv {
+  const inGrid = (p: Vec2) => {
+    const i = Math.round((p.x - field.x0) / field.cell);
+    const j = Math.round((p.y - field.y0) / field.cell);
+    return i >= 0 && j >= 0 && i < field.nx && j < field.ny ? j * field.nx + i : -1;
+  };
+  return {
+    groundAt: (p) => (inGrid(p) < 0 ? field.deckHeight - LAWN_DROP : -sampleDepth(field, p)),
+    isWater: (p) => {
+      const k = inGrid(p);
+      return k >= 0 && field.sdf[k] > 0;
+    },
+  };
 }

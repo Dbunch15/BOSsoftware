@@ -14,6 +14,7 @@ export type Tool =
   | 'raise'
   | 'smooth'
   | 'flatten'
+  | 'rock'
   | 'pan';
 
 export const SCULPT_TOOLS = ['deepen', 'raise', 'smooth', 'flatten'] as const;
@@ -26,9 +27,11 @@ export type Selection =
   | { kind: 'feature'; id: string }
   | { kind: 'spa' }
   | { kind: 'violation'; id: string }
+  | { kind: 'rockwork'; id: string }
   | null;
 
 export type Layout = 'split' | 'plan' | '3d';
+export type RockPreset = 'wall' | 'waterfall' | 'grotto';
 
 export interface BrushSettings {
   /** Radius in meters. */
@@ -45,6 +48,7 @@ interface UiState {
   selection: Selection;
   layout: Layout;
   brush: BrushSettings;
+  rockPreset: RockPreset;
   showWater: boolean;
   showHeatmap: boolean;
   showContours: boolean;
@@ -80,6 +84,7 @@ export const useUi = create<UiState>()((set) => ({
   selection: null,
   layout: 'split',
   brush: { radius: 0.9, strength: 0.5, flattenDepth: 1.2, usePressure: true },
+  rockPreset: 'waterfall',
   showWater: true,
   showHeatmap: true,
   showContours: true,
