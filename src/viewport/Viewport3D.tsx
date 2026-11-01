@@ -20,6 +20,11 @@ import { formatQuantity } from '../units/format';
 import { LAWN_TINT, ShellMesh } from './ShellMesh';
 import { Water } from './Water';
 import { Rockwork3D } from './Rockwork3D';
+import { FlyControls } from './FlyControls';
+import { Handles3D } from './Handles3D';
+import { useHandleDrag } from './useHandleDrag';
+import { BrushGhost } from './BrushGhost';
+import { formatLength as fmtLen } from '../units/format';
 import { grassTexture } from './textures';
 
 const HDRI = `${import.meta.env.BASE_URL}hdri/rooitou_park_1k.hdr`;
@@ -56,6 +61,7 @@ export function Viewport3D() {
       ) : (
         <div className="fallback3d">3D preview needs WebGL 2. The plan view and all tools still work.</div>
       )}
+      <FlyHud />
     </div>
   );
 }
@@ -69,6 +75,48 @@ function Scene({ onBuilt, onRocks }: { onBuilt: (sig: string) => void; onRocks: 
   const sculpting = useRef(false);
   const [brushAt, setBrushAt] = useState<THREE.Vector3 | null>(null);
   const sculptMode = isSculptTool(tool);
+  const gl = useThree((s) => s.gl);
+  const camera = useThree((s) => s.camera);
+  const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
+  const selection = useUi((s) => s.selection);
+  const [rockHover, setRockHover] = useState<string | null>(null);
+  const { start: startDrag } = useHandleDrag();
+
+  // While sculpting, the wheel sizes the brush (Ctrl: strength, Shift: zoom) instead of zooming.
+  useEffect(() => {
+    const el = gl.domElement;
+    const onWheel = (e: WheelEvent) => {
+      const ui = useUi.getState();
+      if (!isSculptTool(ui.tool) || ui.flight) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const d = e.deltaY || e.deltaX;
+      if (e.shiftKey) {
+        const target = controls?.target ?? new THREE.Vector3();
+        const k = Math.exp(d * 0.0012);
+        camera.position.sub(target).multiplyScalar(k).add(target);
+        controls?.update();
+      } else if (e.ctrlKey || e.metaKey) {
+        ui.setBrush({ strength: Math.min(1, Math.max(0.05, Math.round((ui.brush.strength - d * 0.0008) * 100) / 100)) });
+      } else {
+        ui.setBrush({ radius: Math.min(4, Math.max(0.15, ui.brush.radius * Math.exp(-d * 0.0015))) });
+      }
+    };
+    el.addEventListener('wheel', onWheel, { capture: true, passive: false });
+    return () => el.removeEventListener('wheel', onWheel, { capture: true });
+  }, [gl, camera, controls]);
+
+  // Test hook (?e2e): project a plan point to screen coordinates.
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has('e2e')) return;
+    (window as unknown as { __nps3d?: unknown }).__nps3d = {
+      project: (x: number, y: number, z: number) => {
+        const v = new THREE.Vector3(x, y, z).project(camera);
+        const r = gl.domElement.getBoundingClientRect();
+        return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+      },
+    };
+  });
 
   const dab = (e: ThreeEvent<PointerEvent>) => {
     if (!isSculptTool(tool)) return;
@@ -82,6 +130,7 @@ function Scene({ onBuilt, onRocks }: { onBuilt: (sig: string) => void; onRocks: 
         strength: brush.strength,
         pressure,
         flattenDepth: brush.flattenDepth,
+        shape: brush.shape,
       });
     });
   };
@@ -119,13 +168,44 @@ function Scene({ onBuilt, onRocks }: { onBuilt: (sig: string) => void; onRocks: 
       </Suspense>
       {quality === 'high' && <SoftShadows size={22} samples={10} focus={0.5} />}
       <Sun center={center} radius={radius} shadows={quality === 'high'} />
-      <ShellMesh model={model} onBuilt={onBuilt} caustics={showWater ? 0.22 : 0} {...handlers} />
+      <ShellMesh
+        model={model}
+        onBuilt={onBuilt}
+        caustics={showWater ? 0.22 : 0}
+        {...handlers}
+        onClick={(e) => {
+          // A click (not an orbit drag) on empty ground clears the selection.
+          if (useUi.getState().tool === 'select' && e.delta < 4) useUi.getState().select(null);
+        }}
+      />
       {showWater && <Water model={model} quality={quality} />}
       <Ground model={model} />
       <Placeholders3D model={model} />
-      <Rockwork3D model={model} onRocks={onRocks} />
+      <Rockwork3D
+        model={model}
+        onRocks={onRocks}
+        interact={
+          tool === 'select'
+            ? {
+                hoverId: rockHover,
+                selectedId: selection?.kind === 'rockwork' ? selection.id : null,
+                onHover: (id) => {
+                  setRockHover(id);
+                  document.body.style.cursor = id ? 'grab' : '';
+                },
+                onDown: (e, id) => {
+                  if (e.nativeEvent.button !== 0) return;
+                  useUi.getState().select({ kind: 'rockwork', id });
+                  startDrag(e, { kind: 'rockMove', id, last: { x: e.point.x, y: e.point.z } }, e.point.y);
+                },
+              }
+            : undefined
+        }
+      />
+      <Handles3D model={model} />
       <Markers model={model} />
       {sculptMode && brushAt && <BrushRing at={brushAt} radius={brush.radius} />}
+      {sculptMode && brushAt && isSculptTool(tool) && <BrushGhost model={model} at={brushAt} tool={tool} brush={brush} />}
       <CameraRig center={center} radius={radius} />
       <OrbitControls
         makeDefault
@@ -135,11 +215,13 @@ function Scene({ onBuilt, onRocks }: { onBuilt: (sig: string) => void; onRocks: 
         minDistance={2}
         maxDistance={120}
         mouseButtons={{
+          // Left orbits (paints while sculpting), middle pans, right is reserved for flying.
           LEFT: (sculptMode ? -1 : THREE.MOUSE.ROTATE) as THREE.MOUSE,
-          MIDDLE: THREE.MOUSE.DOLLY,
-          RIGHT: (sculptMode ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN) as THREE.MOUSE,
+          MIDDLE: THREE.MOUSE.PAN,
+          RIGHT: -1 as THREE.MOUSE,
         }}
       />
+      <FlyControls />
       <EffectComposer multisampling={0} enableNormalPass={false}>
         {quality === 'high' ? (
           <N8AO aoRadius={1.1} distanceFalloff={0.9} intensity={2.2} halfRes quality="medium" />
@@ -387,4 +469,23 @@ function hasWebGL(): boolean {
   } catch {
     return false;
   }
+}
+
+function FlyHud() {
+  const flight = useUi((s) => s.flight);
+  const tool = useUi((s) => s.tool);
+  const units = useModel().doc.units;
+  if (flight) {
+    const speed = units === 'imperial' ? `${fmtLen(flight.speed, units).replace(/ 0"$/, '')}/s` : `${flight.speed.toFixed(1)} m/s`;
+    return (
+      <div className="fly-hud" data-testid="fly-hud">
+        <b>Flying</b> · {speed} · WASD move · Space / Shift up · down · Ctrl fast · scroll speed
+      </div>
+    );
+  }
+  return (
+    <div className="view-hint">
+      {isSculptTool(tool) ? 'Paint: left · Size: scroll · Strength: Ctrl+scroll · Zoom: Shift+scroll' : 'Orbit: left drag · Pan: middle · Fly: hold right + WASD · Zoom: scroll'}
+    </div>
+  );
 }
