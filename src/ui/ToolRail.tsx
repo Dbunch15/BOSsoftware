@@ -1,23 +1,7 @@
 import { useUi } from '../state/uiStore';
 import { Icon } from './icons';
-import { TOOL_GROUPS } from './tools';
+import { TOOL_GROUPS, TOOL_ICON } from './tools';
 
-const ICON: Record<string, string> = {
-  select: 'select',
-  pen: 'pen',
-  insert: 'insert',
-  remove: 'remove',
-  beach: 'beach',
-  bench: 'bench',
-  shelf: 'shelf',
-  deep: 'deep',
-  deepen: 'deepen',
-  raise: 'raise',
-  smooth: 'smooth',
-  flatten: 'flatten',
-  rock: 'rock',
-  pan: 'pan',
-};
 
 export function ToolRail() {
   const tool = useUi((s) => s.tool);
@@ -39,7 +23,7 @@ export function ToolRail() {
               data-testid={`tool-${t.id}`}
               onClick={() => setTool(t.id)}
             >
-              <Icon name={ICON[t.id]} />
+              <Icon name={TOOL_ICON[t.id]} />
               <span className="kbd-hint">{t.key}</span>
             </button>
           ))}

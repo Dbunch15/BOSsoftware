@@ -2,7 +2,7 @@
  * 3D rockwork: instanced displaced-boulder meshes from model.rockwork layouts, triplanar rock
  * shading, and an animated waterfall sheet with foam and mist.
  */
-import { useFrame } from '@react-three/fiber';
+import { type ThreeEvent, useFrame } from '@react-three/fiber';
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { Model } from '../model/buildModel';
@@ -145,7 +145,15 @@ vRockNrm = normalize(mat3(rockM) * objectNormal);`,
 
 // ---- components --------------------------------------------------------------------------
 
-export function Rockwork3D({ model, onRocks }: { model: Model; onRocks?: (n: number) => void }) {
+export interface RockInteraction {
+  /** Rockwork under the pointer and the selected one are drawn brighter. */
+  hoverId: string | null;
+  selectedId: string | null;
+  onHover: (id: string | null) => void;
+  onDown: (e: ThreeEvent<PointerEvent>, id: string) => void;
+}
+
+export function Rockwork3D({ model, onRocks, interact }: { model: Model; onRocks?: (n: number) => void; interact?: RockInteraction }) {
   const total = model.doc.rockwork.reduce((n, rw) => n + (model.rockwork[rw.id]?.rocks.length ?? 0), 0);
   useEffect(() => {
     onRocks?.(total);
@@ -157,7 +165,20 @@ export function Rockwork3D({ model, onRocks }: { model: Model; onRocks?: (n: num
         if (!lay) return null;
         return (
           <group key={rw.id}>
-            <Boulders rw={rw} layout={lay} />
+            <group
+              onPointerOver={
+                interact
+                  ? (e) => {
+                      e.stopPropagation();
+                      interact.onHover(rw.id);
+                    }
+                  : undefined
+              }
+              onPointerOut={interact ? () => interact.onHover(null) : undefined}
+              onPointerDown={interact ? (e) => interact.onDown(e, rw.id) : undefined}
+            >
+              <Boulders rw={rw} layout={lay} glow={interact?.selectedId === rw.id ? 1.32 : interact?.hoverId === rw.id ? 1.18 : 1} />
+            </group>
             {lay.falls && <Waterfall falls={lay.falls} />}
           </group>
         );
@@ -166,7 +187,7 @@ export function Rockwork3D({ model, onRocks }: { model: Model; onRocks?: (n: num
   );
 }
 
-function Boulders({ rw, layout }: { rw: Rockwork; layout: RockLayout }) {
+function Boulders({ rw, layout, glow }: { rw: Rockwork; layout: RockLayout; glow: number }) {
   const groups = useMemo(() => {
     const by: number[][] = Array.from({ length: ROCK_VARIANTS }, () => []);
     layout.rocks.forEach((r, i) => by[r.variant].push(i));
@@ -175,13 +196,13 @@ function Boulders({ rw, layout }: { rw: Rockwork; layout: RockLayout }) {
   return (
     <>
       {groups.map((idx, variant) =>
-        idx.length ? <VariantInstances key={variant} rw={rw} layout={layout} indices={idx} variant={variant} /> : null,
+        idx.length ? <VariantInstances key={variant} rw={rw} layout={layout} indices={idx} variant={variant} glow={glow} /> : null,
       )}
     </>
   );
 }
 
-function VariantInstances({ rw, layout, indices, variant }: { rw: Rockwork; layout: RockLayout; indices: number[]; variant: number }) {
+function VariantInstances({ rw, layout, indices, variant, glow }: { rw: Rockwork; layout: RockLayout; indices: number[]; variant: number; glow: number }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   const geometry = rockGeometry(variant, rw.jaggedness);
   const material = getRockMaterial();
@@ -200,14 +221,14 @@ function VariantInstances({ rw, layout, indices, variant }: { rw: Rockwork; layo
       q.setFromEuler(e);
       m.compose(new THREE.Vector3(r.x, r.y, r.z), q, new THREE.Vector3(r.sx, r.sy, r.sz));
       mesh.setMatrixAt(i, m);
-      c.copy(base).multiplyScalar(r.shade);
+      c.copy(base).multiplyScalar(r.shade * glow);
       mesh.setColorAt(i, c);
     });
     mesh.count = indices.length;
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.computeBoundingSphere();
-  }, [indices, layout, rw.rockType]);
+  }, [indices, layout, rw.rockType, glow]);
   return <instancedMesh ref={ref} args={[geometry, material, indices.length]} castShadow receiveShadow frustumCulled={false} />;
 }
 
